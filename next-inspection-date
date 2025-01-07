@@ -1,0 +1,12 @@
+//This script calculates the next inspection date based on a start date (RAP_DATE) and inpsection schedule in months (INSP_SCHEDULE)
+
+var today_date = Today();
+var ins_start = $feature["RAP_DATE"];
+var ins_schedule = $feature["INSP_SCHEDULE"];
+var next_ins = DateAdd(ins_start, ins_schedule, 'months');
+var ins_it = ins_schedule;
+while (next_ins < today_date){
+    ins_it += ins_schedule;
+    next_ins = DateAdd(ins_start, ins_it, 'months');
+}
+return Text(next_ins, 'M/D/YYYY');
