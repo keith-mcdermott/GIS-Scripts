@@ -1,0 +1,10 @@
+//This script returns the total volume from an injection record table for each injection well pop-up. INJ_WELL_ID is used to join the tables. 
+
+var table = FeatureSetByName($datastore,"Injection_Record") 
+var total = 0
+for (var t in table) {
+if ((t.AMENDMENT == "3DMe") && (t.INJ_WELL_ID == $feature["INJ_WELL_ID"])) {
+total = total + t.VOLUME
+}
+}
+return total
