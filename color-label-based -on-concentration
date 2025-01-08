@@ -1,0 +1,11 @@
+//This script colors contaminant labels ("Pb") based on concentration above or below a standard (200 in this case).
+
+var labelA=$feature.Sample_ID  +" (" +$feature.Depth+")"+"\n"+"<CLR blue='255'>"+$feature.Pb+"</CLR>"
+
+var labelB=$feature.Sample_ID  +" (" +$feature.Depth+")"+"\n"+$feature.Pb
+
+if ($feature.Pb > 200){
+return labelA
+} Else{
+return labelB
+}
