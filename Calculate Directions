@@ -1,0 +1,26 @@
+def compass_to_degrees(direction):
+    # Dictionary mapping compass directions to degrees
+    compass_dict = {
+        "north": 0,
+        "north-northeast": 22.5,
+        "northeast": 45,
+        "east-northeast": 67.5,
+        "east": 90,
+        "east-southeast": 112.5,
+        "southeast": 135,
+        "south-southeast": 157.5,
+        "south": 180,
+        "south-southwest": 202.5,
+        "southwest": 225,
+        "west-southwest": 247.5,
+        "west": 270,
+        "west-northwest": 292.5,
+        "northwest": 315,
+        "north-northwest": 337.5
+    }
+    
+    # Normalize input to lowercase and strip whitespace
+    dir_normalized = direction.lower().strip()
+    
+    # Return the degree if found, else None or a default value
+    return compass_dict.get(dir_normalized, None)
