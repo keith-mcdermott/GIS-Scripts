@@ -1,0 +1,115 @@
+import arcpy
+arcpy.env.overwriteOutput=1
+
+def script_tool(workspace, feature_class, standards_table, feature_id_field, s_field, results_table):
+    arcpy.env.workspace = workspace
+    # create lists of fields in feature calss and standards table
+    standards_fields = [sf.name for sf in arcpy.ListFields(standards_table)]
+    feature_fields = [ff.name for ff in arcpy.ListFields(feature_class)]
+    
+    # create list of compounds to be evaluated by matching results fields in feature class to compound feilds in standards table, excluding OBJECTID
+    match_fields = []
+    for f in feature_fields:
+        for s in standards_fields:
+            if f == s and f != 'OBJECTID':
+                match_fields.append(f)
+    
+    # create list of each standard in standards table
+    standards_list = []
+    with arcpy.da.SearchCursor (standards_table, s_field) as cursor:
+        for row in cursor:
+            standards_list.append(row[0])
+    
+    # create list of field names for results_table and include "ID" and "Summary" fields
+    results_table_fields = []
+    # results_table_id_field variable used later
+    results_table_id_field = "ID"
+    results_table_fields.append(results_table_id_field)
+    for r in match_fields:
+        for s in standards_list:
+            results_table_fields.append("{0}_{1}".format(r,s))
+        results_table_fields.append("{0}_SUMMARY".format(r))
+    
+    # create list of sample feature ids
+    feature_id_list = []
+    with arcpy.da.SearchCursor (feature_class, feature_id_field) as cursor:
+        for row in cursor:
+            feature_id_list.append(row[0])
+    
+    # create a results table to hold comparison results, add fields from results_table_fields list
+    arcpy.management.CreateTable(workspace, results_table)
+    
+    for r in results_table_fields:
+        arcpy.management.AddField(results_table, r, "TEXT")
+    # Add new records for each feature id
+    with arcpy.da.InsertCursor(results_table, feature_id_field) as cursor:
+        for fl in feature_id_list:
+            cursor.insertRow([fl])
+    
+    # Compare feature class data to standards
+    for x in match_fields:
+        with arcpy.da.SearchCursor(feature_class,[feature_id_field,x]) as cursor:
+            for row in cursor:
+                summary_i = 0
+                summary_text = ""
+                with arcpy.da.SearchCursor(standards_table, [s_field,x]) as s_cursor:
+                    for s_row in s_cursor:
+                        # Address null values in sample (no data) and/or standard (no standard)
+                        contains_null = False
+                        if row[1] == None or s_row[1] == None:
+                            if row[1] == None:
+                                result = "NA"
+                            else:
+                                result = "NS"
+                            contains_null = True
+                        if not contains_null:
+                            # Perform comparison and create variable "result" containing comparison result
+                            if row[1] > s_row[1]:
+                                result = 'Above'
+                                # Create variable "summary_text" list of which standards are exceeded for summary field
+                                if summary_i == 0:
+                                    summary_text = s_row[0]
+                                else:
+                                    summary_text = summary_text + ", " + s_row[0]
+                                summary_i += 1
+                            else:
+                                result = 'Below'
+                        # populate each stanards field in the results table with comparison result
+                        update_field = "{0}_{1}".format(x,s_row[0])
+                        where_clause = results_table_id_field + "= '"+ row[0]+"'"
+                        # print(row[0],x, row[1], s_row[1])
+                        with arcpy.da.UpdateCursor (results_table, update_field, where_clause) as u_cursor:
+                            for u_row in u_cursor:
+                                u_row[0] = result
+                                u_cursor.updateRow(u_row)
+                        # update summary field with list of standards exceeded
+                        summary_field_update = '{0}_SUMMARY'.format(x)
+                        with arcpy.da.UpdateCursor(results_table, summary_field_update, where_clause) as sum_cursor:
+                            for sum_row in sum_cursor:
+                                sum_row[0] = summary_text
+                                sum_cursor.updateRow(sum_row)
+
+
+    #return
+
+
+if __name__ == "__main__":
+
+    # User Variable: Set input parameters
+    param0 = arcpy.GetParameterAsText(0)
+    
+    param1 = arcpy.GetParameterAsText(1)
+    param2 = arcpy.GetParameterAsText(2)
+    
+    # User Variable: Field in feature class that contains sample id
+    param3 = arcpy.GetParameterAsText(3)
+    
+    # User Variable: Field in standards table listing standards to be evaluated
+    param4 = arcpy.GetParameterAsText(4)
+    
+    # User Variable: Output results table name
+    param5 = arcpy.GetParameterAsText(5)
+    
+
+    script_tool(param0, param1, param2, param3, param4, param5) 
+    #arcpy.SetParameterAsText(2, "Result")
