@@ -1,0 +1,42 @@
+import arcpy
+arcpy.env.overwriteOutput = True
+
+def script_tool(fc,field,std_name,std_level,std_decimals):
+    # fc = r'C:\GIS\GIS\Default.gdb\Samples'
+    # field = 'TCE'
+    # std_name = 'RDCSRS'
+    # std_level = 10
+    # std_decimals = 2
+
+    comp_field = '{0}_{1}'.format(field,std_name)
+
+    lstFields = arcpy.ListFields(fc)
+    for f in lstFields:
+        if f.name =='{0}_{1}'.format(field,std_name):
+            arcpy.management.DeleteField(fc,comp_field)
+
+    arcpy.management.AddField(fc,comp_field,'TEXT')
+
+    exceed = ''
+    with arcpy.da.UpdateCursor(fc,[field,comp_field]) as cursor:
+        for row in cursor:
+            contains_null = False
+            if row[0] == None:
+                row[1] = "NA"
+                contains_null = True
+            if not contains_null:
+                if round(row[0],std_decimals) > std_level:
+                    row[1] = 'above'
+                elif round(row[0],std_decimals) <= std_level:
+                    row[1]  = 'below'
+                else:
+                    row[1]  = 'no comparison'
+            cursor.updateRow(row)
+if __name__ == '__main__':
+    param0 = arcpy.GetParameterAsText(0)
+    param1 = arcpy.GetParameterAsText(1)
+    param2 = arcpy.GetParameterAsText(2)
+    param3 = arcpy.GetParameter(3)
+    param4 = arcpy.GetParameter(4)
+
+    script_tool(param0,param1,param2,param3,param4)
