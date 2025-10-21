@@ -1,0 +1,190 @@
+import arcpy, os
+import random
+from datetime import datetime, timedelta
+
+arcpy.env.overwriteOutput = True
+
+folder = r"C:\GIS\WebDev\Utility_Example\GIS\Water_Utility"
+gdb = "Water_Utility_Survey.gdb"
+
+target_fcs = {"ServiceConnections": {"geometry": "POINT", "spatial_ref": 4326},
+              "Lines": {"geometry": "POLYLINE", "spatial_ref": 4326},
+              "Valves": {"geometry": "POINT", "spatial_ref": 4326}
+              }
+
+full_gdb_path = os.path.join(folder,gdb)
+
+start_date = "1950-01-01"
+end_date = "2024-12-31"
+def generate_random_date(start_date_str, end_date_str, date_format="%Y-%m-%d"):
+
+    start_date = datetime.strptime(start_date_str, date_format).date()
+    end_date = datetime.strptime(end_date_str, date_format).date()
+
+    time_between_dates = end_date - start_date
+    days_between_dates = time_between_dates.days
+    random_number_of_days = random.randrange(days_between_dates + 1) # +1 to include end date
+
+    random_date = start_date + timedelta(days=random_number_of_days)
+    return random_date
+
+
+def initalSetup():
+
+    # Standard fields
+    ServiceConnections_standard_fields = [
+        ("serve_id", "TEXT", 50,"Service ID"),
+        ("cust_id", "TEXT", 50, "Customer ID"),
+        ("meter_id", "TEXT", 50, "Meter ID"),
+        ("status", "TEXT", 50, "Status"),
+        ("install_date", "DATE", None, "Installation Date"),
+        ("avg_use", "DOUBLE", None, "Average Use")
+    ]
+
+    Lines_standard_fields = [
+        ("pipe_id", "TEXT", 50, "Pipe ID"),
+        ("material", "TEXT", 50, "Material"),
+        ("diameter_in", "DOUBLE", None, "Diameter (in)"),
+        ("install_date", "DATE", None, "Installation Date"),
+        ("condition", "TEXT", 50, "Condition"),
+        ("leak_count", "SHORT", None, "Leak Count"),
+    ]
+
+    Valves_standard_fields = [
+        ("valve_id", "TEXT", 50, "Valve ID"),
+        ("valve_type", "TEXT", 50, "Valve Type"),
+        ("open_stat", "TEXT", 50, "Open Status"),
+        ("install_date", "DATE", None, "Installation Date"),
+        ("operable", "TEXT", 50, "Operable")
+    ]
+
+    # Check if GDB exists, if not create one.
+    # Set workspace to GDB
+    if arcpy.Exists(full_gdb_path):
+        print(f"{full_gdb_path} Exists. Setting to current workspace.")
+        arcpy.env.workspace = full_gdb_path
+    else:
+        print ("Creating GDB and setting to current workspace.")
+        arcpy.management.CreateFileGDB(folder,gdb)
+        arcpy.env.workspace = full_gdb_path
+
+    gdb_fc_list = arcpy.ListFeatureClasses()
+
+    # Check if feature class exists (to avoid overwriting), create if it does not.
+    for fc_name, fc_info in target_fcs.items():
+        if fc_name in gdb_fc_list:
+            print(f"Feature Class {fc_name} found.")
+            continue
+
+        print(f"Creating feature class {fc_name}.")
+
+        geometry_type = fc_info["geometry"]
+        sr = arcpy.SpatialReference(fc_info["spatial_ref"])
+
+        arcpy.CreateFeatureclass_management(
+            full_gdb_path,
+            fc_name,
+            geometry_type=geometry_type,
+            spatial_reference=sr)
+
+
+        # Add standard fields to each feature class
+        if fc_name == "ServiceConnections":
+            fields_to_add = ServiceConnections_standard_fields
+        elif fc_name == "Lines":
+            fields_to_add = Lines_standard_fields
+        elif fc_name == "Valves":
+            fields_to_add = Valves_standard_fields
+
+        for field_name, field_type, field_length,alias in fields_to_add:
+            arcpy.AddField_management(
+                in_table = os.path.join(full_gdb_path, fc_name),
+                field_name = field_name,
+                field_type = field_type,
+                field_length = field_length,
+                field_alias = alias
+            )
+            print(f"Adding field {field_name} to fc {fc_name}")
+
+    print("\nScript Complete")
+
+def populateFC():
+    arcpy.env.workspace = full_gdb_path
+
+    # Get list of field for each feature
+    # lines_fields = [f.name for f in arcpy.ListFields(lines_fc) if not f.required]
+    # serviceconnections_fields = [f.name for f in arcpy.ListFields(serviceconnections_fc) if not f.required]
+    # valves_fields = [f.name for f in arcpy.ListFields(valves_fc) if not f.required]
+
+    lines_fc = os.path.join(full_gdb_path,'Lines')
+    lines_fields = ['pipe_id', 'material', 'diameter_in', 'install_date', 'condition', 'leak_count']
+
+    serviceconnections_fc = os.path.join(full_gdb_path, 'ServiceConnections')
+    serviceconnections_fields = ['serve_id', 'cust_id', 'meter_id', 'status', 'install_date', 'avg_use']
+
+    valves_fc = os.path.join(full_gdb_path, 'Valves')
+    valves_fields = ['valve_id', 'valve_type', 'open_stat', 'install_date', 'operable']
+
+    # Populate fields
+    with arcpy.da.UpdateCursor(lines_fc, lines_fields) as cursor:
+        l = 1
+        for row in cursor:
+            row[0] = "P"+f"{l:05d}"
+            # row[1] = "PEX"
+            # row[2] = 6
+            row[3] = generate_random_date(start_date, end_date)
+            row[4] = random.choice(["Good", "Fair", "Poor"])
+            row[5] = random.randint(0,5)
+            l += 1
+            cursor.updateRow(row)
+
+    with arcpy.da.UpdateCursor(serviceconnections_fc, serviceconnections_fields) as cursor:
+        c = 1
+        for row in cursor:
+            row[0] = "SC"+f"{c:03d}"
+            row[1] = "C"+f"{c:03d}"
+            # row[2] = "M"+f"{c:03d}"
+            row[3] = "Connected"
+            row[4] = generate_random_date(start_date, end_date)
+            row[5] = random.randint(0,1000)
+            c += 1
+            cursor.updateRow(row)
+
+    with arcpy.da.UpdateCursor(valves_fc, valves_fields) as cursor:
+        v = 1
+        for row in cursor:
+            row[0] = f"V{v:03d}"
+            # row[1] = random.choice(["Gate", "Ball", "Butterfly"])
+            row[2] = random.choices(["Open", "Closed"],weights =[95,5])[0]
+            row[3] = generate_random_date(start_date, end_date)
+            row[4] = random.choices(["Yes", "No"],weights =[95,5])[0]
+            v += 1
+            cursor.updateRow(row)
+
+    print("\nScript Complete")
+def exportGeojson():
+    arcpy.env.workspace = full_gdb_path
+#     Create folder for geojson
+    geojson_folder=os.path.join(folder,"Water_Utility_Survey_Geojson")
+    os.makedirs(geojson_folder,exist_ok=True)
+
+    feature_classes = arcpy.ListFeatureClasses()
+
+    # Convert feature classes to geojson
+    for fc in feature_classes:
+        output_geojson_path = os.path.join(geojson_folder,f"{fc}.geojson")
+        try:
+            print(f"Converting {fc} to geojson.")
+            arcpy.conversion.FeaturesToJSON(fc, output_geojson_path)
+        except arcpy.ExecuteError:
+            print(f"Error converting {fc}.")
+        except Exception as e:
+            print(f"Error converting {fc}:{e}.")
+    print("\nScript Complete")
+
+
+
+if __name__ == "__main__":
+    # initalSetup()
+    # populateFC()
+    # exportGeojson()
