@@ -1,0 +1,116 @@
+// User can define fields specific to their data here
+
+// Analyte Fields
+var analyte_fields = [$feature.Test1, $feature.Test2, $feature.Test3];
+
+// Result Fields
+var result_fields = [$feature.Test1Result, $feature.Test2Result, $feature.Test3Result];
+
+// Exceedance value fields
+var exceed_fields = [$feature.Test1Exceed, $feature.Test2Exceed, $feature.Test3Exceed];
+
+// Additional fields for added chart columns
+var add_column = [$feature.add_column1, $feature.add_column2, $feature.add_column3];
+
+// Set the column width for the tables
+var clmwdth_s = 15; // Column width for Sample
+var clmwdth_r = 12; // Column width for Result
+var clmwdth_e = 16; // Column width for exceedance comparison
+
+// Color definitions (RGBA where last value is alpha)
+var yellow = [252,202,70,100];
+var orange = [254,127,45,100];
+var red    = [164,22,26,100];
+var blue   = [3,83,164,100];
+var ltblue = [95,168,211,100];
+var green  = [76,149,108,100];
+var ltgreen= [97,155,138,100];
+var black  = [0,0,0,100];
+var white  = [255,255,255,100];
+var none   = [0,0,0,0];
+
+// Default text/font settings (font size is numeric)
+var textFontName  = "Consolas";
+var textFontStyle = "Regular";
+var textFontSize  = 8; // number, not string
+
+function ljust(string, width) {
+    if (count(string) > width ) {
+        return left(string, width);
+    } else {
+        for (var i = count(string); i < width; i++) {
+            string += ' ';
+        }
+        return string;
+    }
+}
+
+function FormatBO(background, outline, width, padding, txt){
+  var attr = "";
+  if(background != none && count(background) == 4){
+    attr += " red='"   + background[0] + "'";
+    attr += " green='" + background[1] + "'";
+    attr += " blue='"  + background[2] + "'";
+    attr += " alpha='" + background[3] + "'";
+  }
+  if(outline != none && count(outline) == 4){
+    attr += " outline_red='"    + outline[0] + "'";
+    attr += " outline_green='"  + outline[1] + "'";
+    attr += " outline_blue='"   + outline[2] + "'";
+    attr += " outline_alpha='"  + outline[3] + "'";
+    attr += " width='" + width + "'";
+    attr += " padding='" + padding + "'";
+  }
+  return "<BGD" + attr + ">" + txt + "</BGD>";
+}
+
+function SetTextColor(rgba, txt) {
+  var r = rgba[0];
+  var g = rgba[1];
+  var b = rgba[2];
+  var a = rgba[3];
+  return "<CLR red='" + r + "' green='" + g + "' blue='" + b + "' alpha='" + a + "'>" + txt + "</CLR>";
+}
+
+// Override default font setting for a particular cell
+function FormatFont(label, name, style, size) {
+  var tagName = IIf(name=="", "", " NAME='"+name+"'");
+  var tagStyle = IIf(style=="", "", " STYLE='"+style+"'");
+  var tagSize = IIf(size==0, "", " SIZE='"+size+"'");
+  return "<FNT" + tagName + tagStyle + tagSize + ">" + label + "</FNT>";
+}
+
+// Table header cells (use numeric textFontSize)
+var h1 = SetTextColor(white, FormatBO(blue, black, 1, 0, FormatFont(ljust(" Sample", clmwdth_s), textFontName, textFontStyle, textFontSize)));
+var h2 = SetTextColor(white, FormatBO(blue, black, 1, 0, FormatFont(ljust(" Result", clmwdth_r), textFontName, textFontStyle, textFontSize)));
+var h3 = SetTextColor(white, FormatBO(blue, black, 1, 0, FormatFont(ljust(" Add Column", clmwdth_e), textFontName, textFontStyle, textFontSize)));
+
+var counter = 0;
+var table_result = "";
+
+for (var analyte in analyte_fields) {
+
+  var sampleLabel = ljust(" " + analyte_fields[analyte], clmwdth_s);
+  var resultLabel = ljust(" " + Text(Round(result_fields[analyte],4)), clmwdth_r);
+  var addLabel    = ljust(" " + add_column[analyte], clmwdth_e);
+
+  if (exceed_fields[analyte] == "Y") {
+    table_result += SetTextColor(black, FormatBO(yellow, black, 1, 0, FormatFont(sampleLabel, textFontName, textFontStyle, textFontSize)));
+    table_result += SetTextColor(yellow, FormatBO(red, black, 1, 0, FormatFont(resultLabel, textFontName, textFontStyle, textFontSize)));
+    table_result += SetTextColor(black, FormatBO(yellow, black, 1, 0, FormatFont(addLabel, textFontName, textFontStyle, textFontSize)));
+    table_result += TextFormatting.Newline;
+  } else {
+    table_result += SetTextColor(black, FormatBO(white, black, 1, 0, FormatFont(sampleLabel, textFontName, textFontStyle, textFontSize)));
+    table_result += SetTextColor(black, FormatBO(white, black, 1, 0, FormatFont(resultLabel, textFontName, textFontStyle, textFontSize)));
+    table_result += SetTextColor(black, FormatBO(white, black, 1, 0, FormatFont(addLabel, textFontName, textFontStyle, textFontSize)));
+    table_result += TextFormatting.Newline;
+  }
+
+  counter += 1;
+}
+
+// Adjust LIN leading value based on font size (use Text() to convert number to string)
+var leadingValue = Text(-0.3 * textFontSize);
+var headerLine = $feature.SiteName + " - " + $feature.SampleID + "\n" + h1 + h2 + h3 + "\n";
+
+return "<LIN leading = '" + leadingValue + "' leading_type = 'extra'>" + headerLine + table_result + "</LIN>";
