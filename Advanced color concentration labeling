@@ -1,22 +1,40 @@
-// Arcade: minimal-change styling; null/empty returns "NA"
+// Arcade: parse number for comparison but display original "number" or "number QUAL" (qual separated by a space)
+//DATA FORMAT: Data as number SPACE qualifier. Use NA or Null (Blank) values for paramters not analyzed. 
+
 function styleNumericField(val, mgw, res, nres) {
-    // PRE-CHECK: if input is null or empty string, return "NA"
+    // Null / empty check
     if (val == null || IsEmpty(Text(val)) || Text(val) == "") {
         return "NA";
     }
 
-    // Coerce to number after we've excluded null/empty
-    var n = null;
-    if (TypeOf(val) == "number") {
-        n = val;
-    } else {
-        n = Number(val);
+    // Normalize text
+    var txt = Trim(Text(val));
+
+    // If your data might contain non-breaking spaces, normalize them in the attribute table or
+    // let me know the exact raw string and I will provide a Replace() that matches it.
+
+    // Explicit "NA" (any case)
+    if (Upper(txt) == "NA") {
+        return "NA";
     }
-    // If conversion fails (NaN), return "NA"
+
+    // Expect either "num" or "num QUAL" (QUAL separated by a space)
+    var parts = Split(txt, " ");
+    var numToken = parts[0];
+
+    // Convert to number for comparison
+    var n = Number(numToken);
     if (IsNan(n) || n == null) {
         return "NA";
     }
 
+    // Determine display text: keep original simple "num" or "num QUAL" (only first qualifier)
+    var display = numToken;
+    if (Count(parts) > 1) {
+        display = numToken + " " + parts[1];
+    }
+
+    // Comparisons (use numeric n)
     var over1 = (n > mgw);
     var over2 = (n > res);
     var over3 = (n > nres);
@@ -32,7 +50,7 @@ function styleNumericField(val, mgw, res, nres) {
         bgClose = "</CLR>";
     }
 
-    // Bold for s2 and above (kept your tag)
+    // Bold for s2 and above
     var boldOpen = "";
     var boldClose = "";
     if (over3) {
@@ -40,7 +58,7 @@ function styleNumericField(val, mgw, res, nres) {
         boldClose = "</BOL>";
     }
 
-    // Underline for s1 (kept your tag)
+    // Underline for s1
     var underOpen = "";
     var underClose = "";
     if (over1) {
@@ -48,14 +66,12 @@ function styleNumericField(val, mgw, res, nres) {
         underClose = "</UND>";
     }
 
-    // Compose nested tags: background -> bold -> underline -> numeric text
-    var textVal = Text(n); // show parsed numeric value
-    return bgOpen + boldOpen + underOpen + textVal + underClose + boldClose + bgClose;
+    // Return formatted display text (qualifier preserved if present)
+    return bgOpen + boldOpen + underOpen + display + underClose + boldClose + bgClose;
 }
 
 // ---------- Build output ----------
-
-var out = "<UND> <BOL>" + $feature.Sample_ID + "</BOL> </UND>" + "\n"
+var out = "<UND> <BOL>" + $feature.Client_ID + "</BOL> </UND>" + "\n"
     + "BaP: " + styleNumericField($feature.BaP, 9999, 0.51, 2.3) + "\n"
     + "Lead: " + styleNumericField($feature.Lead, 500, 200, 800) + "\n"
     + "Ethylbenzene: " + styleNumericField($feature.Ethylbenzene, 3.3, 10, 48) + "\n"
