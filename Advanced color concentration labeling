@@ -1,0 +1,65 @@
+// Arcade: minimal-change styling; null/empty returns "NA"
+function styleNumericField(val, mgw, res, nres) {
+    // PRE-CHECK: if input is null or empty string, return "NA"
+    if (val == null || IsEmpty(Text(val)) || Text(val) == "") {
+        return "NA";
+    }
+
+    // Coerce to number after we've excluded null/empty
+    var n = null;
+    if (TypeOf(val) == "number") {
+        n = val;
+    } else {
+        n = Number(val);
+    }
+    // If conversion fails (NaN), return "NA"
+    if (IsNan(n) || n == null) {
+        return "NA";
+    }
+
+    var over1 = (n > mgw);
+    var over2 = (n > res);
+    var over3 = (n > nres);
+
+    // Background colors using your CLR tag style
+    var bgOpen = "";
+    var bgClose = "";
+    if (over3) {
+        bgOpen = "<CLR red='168' green='0' blue='132'>";
+        bgClose = "</CLR>";
+    } else if (over2) {
+        bgOpen = "<CLR red='255' green='0' blue='203'>";
+        bgClose = "</CLR>";
+    }
+
+    // Bold for s2 and above (kept your tag)
+    var boldOpen = "";
+    var boldClose = "";
+    if (over3) {
+        boldOpen = "<BOL>";
+        boldClose = "</BOL>";
+    }
+
+    // Underline for s1 (kept your tag)
+    var underOpen = "";
+    var underClose = "";
+    if (over1) {
+        underOpen = "<UND>";
+        underClose = "</UND>";
+    }
+
+    // Compose nested tags: background -> bold -> underline -> numeric text
+    var textVal = Text(n); // show parsed numeric value
+    return bgOpen + boldOpen + underOpen + textVal + underClose + boldClose + bgClose;
+}
+
+// ---------- Build output ----------
+
+var out = "<UND> <BOL>" + $feature.Sample_ID + "</BOL> </UND>" + "\n"
+    + "BaP: " + styleNumericField($feature.BaP, 9999, 0.51, 2.3) + "\n"
+    + "Lead: " + styleNumericField($feature.Lead, 500, 200, 800) + "\n"
+    + "Ethylbenzene: " + styleNumericField($feature.Ethylbenzene, 3.3, 10, 48) + "\n"
+    + "Arsenic: " + styleNumericField($feature.Arsenic, 19, 19, 19) + "\n"
+    + "Cobalt: " + styleNumericField($feature.Cobalt, 1.8, 23, 390);
+
+return out;
