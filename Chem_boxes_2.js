@@ -1,131 +1,172 @@
-//MODIFICATION to use depth as colume headrer
+//Handle multiple contaminants
+// Data format: Result - > 1, 1 U (evalutes number left of first space), or ND (1) (evaluates number in paranthesis) 
+//Standard 1 indicated by *, 2 and 3 by shading
 
-// ==============================
-// User-configurable settings
-// ==============================
+
+// ==============================================
+// CONFIGURATION
+// ==============================================
 var FONT_NAME = "Consolas";
 var FONT_SIZE = 8;
 
-// Standards per test: [S1, S2, S3] 
-// Can provide 1, 2, or 3 values per test
-var standards = [
-    [1, 2, 5],     // Test1
-    [5, 10],       // Test2 (only S1 and S2)
-    [0.5, 1, 2],   // Test3
-    [9999, 1, 2.3] // Test4 (effectively disables S1)
+var contaminants = [
+    { name: "BENZ", field: $feature.BENZ, standards: [1,2,5] },
+    { name: "TCE",  field: $feature.TCE,  standards: [5,10] },
+    { name: "PCB",  field: $feature.PCB,  standards: [0.5,1,2] },
+    { name: "BAP",  field: $feature.BAP,  standards: [1.1,7,30] }
 ];
 
-// Field names
-var analytes = [ $feature.Test1, $feature.Test2, $feature.Test3, $feature.Test4 ];
-var results  = [ $feature.Test1Result, $feature.Test2Result, $feature.Test3Result, $feature.Test4Result ];
-var quals    = [ $feature.Test1Qual, $feature.Test2Qual, $feature.Test3Qual, $feature.Test4Qual ];
+var location = $feature.Boring_ID;
+var heading  = $feature.Sample_Depth;
 
-// Column widths
-var W_A = 18;
-var W_R = 10;
-var W_Q = 6;
+// Adjust widths
+var W_A = 6;
+var W_R = 12;
 
-// Background colors
-var lightYellow = [252, 252, 180, 100];
-var darkYellow  = [252, 202, 70, 100];
+var NBSP = "\u00A0";
+var FIG  = "\u2007";
 
-// ==============================
-// Left-justify helper
-// ==============================
-function ljust(strVal, width) {
-    if (IsEmpty(strVal) || strVal == null) { strVal = ""; }
-    strVal = Text(strVal);
-    if (Count(strVal) > width) { strVal = Left(strVal, width); }
-    while (Count(strVal) < width) { strVal += " "; }
-    return strVal;
-}
+var lightYellow = [252,252,180,100];
+var darkYellow  = [252,202,70,100];
 
-// ==============================
-// Table cell formatting
-// ==============================
-function tableCell(val, bgColor, fontStyle) {
-    var fnt = "<FNT NAME='" + FONT_NAME + "' SIZE='" + Text(FONT_SIZE) + "' STYLE='" + fontStyle + "'>";
-    return "<BGD red='" + bgColor[0] + "' green='" + bgColor[1] + "' blue='" + bgColor[2] + "' alpha='" + bgColor[3] + "' padding='0'>" + fnt + val + "</FNT></BGD>";
-}
 
-// ==============================
-// Style numeric/text value
-// ==============================
-function styleValue(rawVal, idx, qual) {
-    if (IsEmpty(rawVal) || rawVal == null) { return "ND"; }
-    var n = Number(rawVal);
-    if (n == null || IsNan(n)) { return Text(rawVal); }
-    var s = standards[idx];
-    var txt = Text(Round(n,4));
+// ==============================================
+// UTILITY FUNCTIONS
+// ==============================================
+function ljust(val, width) {
+    if (IsEmpty(val) || val == null) { val = ""; }
 
-    // Skip formatting if qualifier is "U"
-    if (Upper(qual) != "U") {
-        if (Count(s) >= 1 && n > s[0]) { txt = "<UND>" + txt + "</UND>"; } // S1 -> underline
-        if (Count(s) >= 3 && n > s[2]) { txt = "<BOL>" + txt + "</BOL>"; } // S3 -> bold
+    var txt = Text(val);
+
+    if (Count(txt) > width) {
+        txt = Left(txt, width);
     }
+
+    while (Count(txt) < width) {
+        txt += NBSP;
+    }
+
     return txt;
 }
 
-// ==============================
-// Build each row
-// ==============================
-function buildRow(i) {
-    var aVal = analytes[i];
-    var rVal = results[i];
-    var qVal = quals[i];
+function fixedCell(val, width) {
+    return FIG + ljust(val, width) + FIG;
+}
 
-    var aText = ljust(IIf(IsEmpty(aVal), "", aVal), W_A);
-    var qText = ljust(IIf(IsEmpty(qVal), "", qVal), W_Q);
+function tableCell(val, bgColor) {
+    var fnt = "<FNT NAME='" + FONT_NAME + "' SIZE='" + Text(FONT_SIZE) + "'>";
 
-    var nVal = null;
-    if (!(IsEmpty(rVal) || rVal == null)) {
-        nVal = Number(rVal);
-        if (IsNan(nVal)) { nVal = null; }
+    return "<BGD red='" + bgColor[0] + "' green='" + bgColor[1] + "' blue='" + bgColor[2] + "' alpha='" + bgColor[3] + "' padding='1'>" +
+           fnt + val + "</FNT></BGD>";
+}
+
+
+// ==============================================
+// PARSING AND STYLING LOGIC
+// ==============================================
+function parseResult(rawVal) {
+
+    if (IsEmpty(rawVal) || rawVal == null) {
+        return { num: null, text: "NA" };
     }
 
-    var styledR = styleValue(rVal, i, qVal);
+    var txt = Trim(Text(rawVal));
 
-    // Background for S2 or S3 exceedances (only if qual != "U")
-    var rBG = [0,0,0,0];
-    var qBG = [0,0,0,0];
-    if (nVal != null && Upper(qVal) != "U") {
-        if (Count(standards[i]) >= 3 && nVal > standards[i][2]) { // S3 exceedance
-            rBG = darkYellow;
-            qBG = darkYellow;
-        } else if (Count(standards[i]) >= 2 && nVal > standards[i][1]) { // S2 exceedance
-            rBG = lightYellow;
-            qBG = lightYellow;
+    // Case: ND (0.2)
+    if (Find("(", txt) > -1 && Find(")", txt) > -1) {
+        var inner = Mid(txt, Find("(", txt)+1, Find(")", txt)-Find("(", txt)-1);
+        var num = Number(inner);
+        return { num: num, text: txt };
+    }
+
+    // Case: numeric first token like "0.15 U"
+    var parts = Split(txt, " ");
+    var n = Number(parts[0]);
+
+    if (!IsNan(n)) {
+        return { num: n, text: txt };
+    }
+
+    return { num: null, text: txt };
+}
+
+
+// ==============================================
+// STYLE VALUE (ASTERISK LOGIC)
+// ==============================================
+function styleValue(rawVal, s) {
+
+    var parsed = parseResult(rawVal);
+    var n = parsed.num;
+    var txt = parsed.text;
+
+    var flag = "";
+
+    // ==============================
+    // FLAG LOGIC (IGNORE QUALIFIERS)
+    // ==============================
+    if (!(n == null)) {
+
+        if (Count(s) >= 1 && n > s[0]) {
+            flag = "*";
         }
     }
 
-    var cellA = tableCell(aText, [0,0,0,0], "Regular");
-    var cellR = tableCell(styledR, rBG, "Regular");
-    var cellQ = tableCell(qText, qBG, "Regular");
+    // ==============================
+    // DISPLAY (KEEP QUALIFIER AS IS)
+    // ==============================
+    var display = txt + flag;
 
-    return cellA + cellR + cellQ;
+    var padded = ljust(display, W_R);
+
+    return fixedCell(padded, W_R);
 }
 
-// ==============================
-// Assemble table (Arcade-safe)
-// ==============================
+// ==============================================
+// BACKGROUND LOGIC
+// ==============================================
+function getBG(rawVal, s) {
+
+    var parsed = parseResult(rawVal);
+    var n = parsed.num;
+
+    if (n == null) {
+        return [0,0,0,0];
+    }
+
+    if (Count(s) >= 3 && n > s[2]) {
+        return darkYellow;
+    }
+
+    if (Count(s) >= 2 && n > s[1]) {
+        return lightYellow;
+    }
+
+    return [0,0,0,0];
+}
+
+
+// ==============================================
+// TABLE CONSTRUCTION
+// ==============================================
 var tbl = "";
 
-// Header row (SampleID on left, Sample_depth on right)
-var headerA = ljust(Text($feature.SampleID), W_A);
-var headerR = ljust(Text($feature.Sample_depth), W_R);
-var headerQ = ljust("", W_Q);
+// Header
+tbl += tableCell("<UND>" + fixedCell(location, W_A) + "</UND>", [0,0,0,0]) +
+       tableCell("<UND>" + fixedCell(heading, W_R) + "</UND>", [0,0,0,0]);
 
-// Build header row
-tbl += tableCell("<UND>" + headerA + "</UND>", [0,0,0,0], "Regular") +
-       tableCell("<UND>" + headerR + "</UND>", [0,0,0,0], "Regular") +
-       tableCell(headerQ, [0,0,0,0], "Regular");
+// Rows
+for (var i = 0; i < Count(contaminants); i++) {
 
-// Data rows
-for (var i = 0; i < Count(analytes); i++) {
-    tbl += TextFormatting.NewLine + buildRow(i);
+    var c = contaminants[i];
+    var rVal = c.field;
+
+    var styled = styleValue(rVal, c.standards);
+    var bg     = getBG(rVal, c.standards);
+
+    tbl += TextFormatting.NewLine +
+           tableCell(fixedCell(c.name, W_A), [0,0,0,0]) +
+           tableCell(styled, bg);
 }
 
-// ==============================
-// Return final label
-// ==============================
 return tbl;
